@@ -11,4 +11,13 @@ set (CMAKE_CXX_FLAGS "-O3")
 
 add_executable(korzo_vonalzo Skeleton.cpp framework.cpp framework.h)
 
-target_link_libraries(${PROJECT_NAME} opengl32 freeglut glew32 m)
+if(WIN32)
+       target_link_libraries(${PROJECT_NAME} opengl32 freeglut glew32)
+endif(WIN)
+
+if(UNIX)
+       target_link_libraries(${PROJECT_NAME} ${OPENGL_LIBARIES} ${GLUT_LIBARY} ${GLEW_LIBARIES})
+endif(UNIX)
+
+
+
