@@ -3,4 +3,12 @@ project(korzo_vonalzo)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(korzo_vonalzo Skeleton.cpp)
+find_package(OpenGL REQUIRED)
+find_package(GLUT REQUIRED)
+find_package(GLEW REQUIRED)
+
+set (CMAKE_CXX_FLAGS "-O3")
+
+add_executable(korzo_vonalzo Skeleton.cpp framework.cpp framework.h)
+
+target_link_libraries(${PROJECT_NAME} opengl32 freeglut glew32 m)
