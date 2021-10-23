@@ -18,7 +18,7 @@
 //
 // NYILATKOZAT
 // ---------------------------------------------------------------------------------------------
-// Nev    : Stefler G�bor
+// Nev    : Stefler Gábor
 // Neptun : KTH674
 // ---------------------------------------------------------------------------------------------
 // ezennel kijelentem, hogy a feladatot magam keszitettem, es ha barmilyen segitseget igenybe vettem vagy

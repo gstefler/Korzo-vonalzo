@@ -9,7 +9,6 @@ find_package(GLEW REQUIRED)
 
 set (CMAKE_CXX_FLAGS "-O3")
 
-
 add_executable(korzo_vonalzo Skeleton.cpp framework.cpp framework.h)
 
 if(WIN32)
