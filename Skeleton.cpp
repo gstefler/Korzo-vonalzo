@@ -86,7 +86,6 @@ static const vec4 YELLOW = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 static const vec4 WHITE = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 static const vec4 NOCOLOR = vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-// represents a point as a square
 struct Point
 {
 	vec2 position;
@@ -284,27 +283,6 @@ vec2 *getIntersectionPoint(Line line, Circle circle){
 	return new vec2[2]{intersectionPoint1, intersectionPoint2};
 }
 
-
-
-vec2 circleStart;
-vec2 circleEnd;
-
-vec2 lineStart;
-vec2 lineEnd;
-
-bool firstObjectSelected = false;
-bool secondObjectSelected = false;
-
-bool isSpressed = false;
-bool isCpressed = false;
-bool isIpressed = false;
-bool isLpressed = false;
-
-bool firstPointPlaced = false;
-bool secondPointPlaced = false;
-
-bool isMousePressed = false;
-
 GPUProgram gpuProgram;
 unsigned int vao;
 
@@ -313,7 +291,6 @@ Texture texture;
 std::vector<Circle> circles;
 std::vector<Line> lines;
 std::vector<Point> points;
-
 
 
 void onInitialization()
@@ -408,26 +385,52 @@ void onDisplay()
 	glutSwapBuffers();
 }
 
+enum ButtonPressed { S, C, I, L, NONE_BUTTON };
+ButtonPressed buttonPressed = NONE_BUTTON;
+
+enum PressStates { FIRST_SELECTED, SECOND_SELECTED, NONE_SELECTED };
+
+enum FirstObject { CIRCLE, LINE, NONE };
+FirstObject firstObject = NONE;
+
+PressStates s = NONE_SELECTED;
+PressStates i = NONE_SELECTED;
+PressStates l = NONE_SELECTED;
+
+// s presss
+unsigned int circleStart = -1;
+unsigned int circleEnd = -1;
+
+
+// l press
+unsigned int lineStart = -1;
+unsigned int lineEnd = -1;
+
+
+// i press
+unsigned int firstObjectIndex = -1;
+unsigned int secondObjectIndex = -1;
+
+
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY)
 {
+
 	switch (key)
 	{
 	case 's':
-		isSpressed = true;
-		printf("s pressed\n");
+		buttonPressed = S;
 		break;
 	case 'c':
-		isCpressed = true;
-		printf("c pressed\n");
+		buttonPressed = C;
 		break;
 	case 'i':
-		isIpressed = true;
-		printf("i pressed\n");
+		buttonPressed = I;
 		break;
 	case 'l':
-		isLpressed = true;
-		printf("");
+		buttonPressed = L;
+		break;
+	default:
 		break;
 	}
 }
@@ -435,21 +438,7 @@ void onKeyboard(unsigned char key, int pX, int pY)
 // Key of ASCII code released
 void onKeyboardUp(unsigned char key, int pX, int pY)
 {
-	switch (key)
-	{
-	case 's':
-		isSpressed = false;
-		break;
-	case 'c':
-		isCpressed = false;
-		break;
-	case 'i':
-		isIpressed = false;
-		break;
-	case 'l':
-		isLpressed = false;
-		break;
-	}
+	buttonPressed = NONE_BUTTON;
 }
 
 // Move mouse with key pressed
@@ -472,168 +461,175 @@ unsigned int getClickedCircle(int x, int y)
 
 unsigned int getClickedLine(int x, int y)
 {
-	for (unsigned int i = 0; i < lines.size(); i++)
-	{
+	for (unsigned int i = 0; i < lines.size(); i++){
 		if (lines[i].isInside(vec2(x, y), 4.0f))
-		{
 			return i;
-		}
 	}
-
 	return -1;
 }
 
-unsigned int firstObjectIndex = -1;
-unsigned int secondObjectIndex = -1;
 
-enum ObjectType { LINE, CIRCLE, NONE};
-
-ObjectType firstObjectType = NONE;
-
-void visualizeIntersection(vec2* p)
-{
+void visualizeIntersection(vec2* p){
 	if (p != nullptr){
 		for (int i = 0; i < 2; i++)
-		{
 			points.push_back(Point(p[i]));
-		}
 	}
 }
+
 
 // Mouse click event
 void onMouse(int button, int state, int pX, int pY){
 	pY = windowHeight - pY;
 	vec2 click = vec2(pX, pY);
+	//printf("Clicked at %d, %d\n", pX, pY);
 
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
 	{
-		for (Point p : points)
+		switch (buttonPressed)
 		{
-			if (p.isInside(click))
-			{
-				if (isSpressed)
+			case S:
+				// check if you clicked on a point
+				for (unsigned int i = 0; i < points.size(); i++)
 				{
-					if (!firstPointPlaced)
+					if (points[i].isInside(click))
 					{
-						circleStart = p.position;
-						firstPointPlaced = true;
-						secondPointPlaced = false;
-					}
-					else if (!secondPointPlaced)
-					{
-						circleEnd = p.position;
-						if (!areEqual(circleStart, circleEnd))
+						switch (s)
 						{
-							firstPointPlaced = false;
-							secondPointPlaced = true;
+							case NONE_SELECTED:
+								s = FIRST_SELECTED;
+								circleStart = i;
+								circleEnd = -1;
+								printf("start index: %d, x: %f, y: %f\n", circleStart, points[i].position.x, points[i].position.y);
+								break;
+							case FIRST_SELECTED:
+								if (circleStart != i)
+								{
+									circleEnd = i;
+									s = NONE_SELECTED;
+									printf("end index: %d, x: %f, y: %f\n", circleEnd, points[i].position.x, points[i].position.y);
+								}
+								break;
 						}
 					}
 				}
-				else if (isCpressed)
+
+				break;
+			case C:
+				// check if you clicked on a point
+				for (unsigned int i = 0; i < points.size(); i++)
 				{
-					if (secondPointPlaced)
+					if (points[i].isInside(click))
 					{
-						circles.push_back(Circle(p.position, length(circleStart - circleEnd)));
-					}
-				}
-				else if (isLpressed)
-				{
-					if (!firstPointPlaced)
-					{
-						lineStart = p.position;
-						firstPointPlaced = true;
-						secondPointPlaced = false;
-					}
-					else if (!secondPointPlaced)
-					{
-						lineEnd = p.position;
-						if (!areEqual(lineStart, lineEnd))
+						if (circleStart != -1 && circleEnd != -1)
 						{
-							firstPointPlaced = false;
-							secondPointPlaced = true;
-
-							lines.push_back(Line(lineStart, lineEnd));
+							float l = length(points[circleStart].position - points[circleEnd].position);
+							printf("circle created at: %d %d", pX, pY);
+							circles.push_back(Circle(points[i].position, l));
 						}
 					}
 				}
-			}
-		}
-		
-		if (isIpressed)
-		{
-			// select the first object
-			if (!firstObjectSelected){
-				unsigned int lineIndex = getClickedLine(pX, pY);
-				if (lineIndex != -1){
-					firstObjectIndex = lineIndex;
-					firstObjectType = LINE;
-					firstObjectSelected = true;
-					secondObjectSelected = false;
-
-					lines[firstObjectIndex].isSelected = true;
-				}
-				else{
-					unsigned int circleIndex = getClickedCircle(pX, pY);
-					if (circleIndex != -1){
-						firstObjectIndex = circleIndex;
-						firstObjectType = CIRCLE;
-						firstObjectSelected = true;
-						secondObjectSelected = false;
-
-						circles[firstObjectIndex].isSelected = true;
-					}
-				}
-			}
-			// select the second object
-			else if (!secondObjectSelected){
-				switch (firstObjectType){
-					case LINE:
-					{
-						unsigned int lineIndex = getClickedLine(pX, pY);
-						if (lineIndex != -1 && lineIndex != firstObjectIndex){
-							secondObjectIndex = lineIndex;
-							secondObjectSelected = true;
-							firstObjectSelected = false;
-
-							lines[firstObjectIndex].isSelected = false;
-
-							vec2 intersections = getIntersectionPoint(lines[firstObjectIndex], lines[secondObjectIndex]);
-							points.push_back(Point(intersections));
+				break;
+			case I:
+				switch (firstObject)
+				{
+					case NONE:
+						firstObjectIndex = getClickedCircle(pX, pY);
+						if (firstObjectIndex != -1)
+						{
+							firstObject = CIRCLE;
+							circles[firstObjectIndex].isSelected = true;
 						}
-						else{
-							unsigned int circleIndex = getClickedCircle(pX, pY);
-							if (circleIndex != -1){
-								secondObjectIndex = circleIndex;
-								secondObjectSelected = true;
-								firstObjectSelected = false;
+						else
+						{
+							firstObjectIndex = getClickedLine(pX, pY);
+							if (firstObjectIndex != -1)
+							{
+								firstObject = LINE;
+								lines[firstObjectIndex].isSelected = true;
+							}
+						}
+						break;
+					case CIRCLE:
+						secondObjectIndex = getClickedCircle(pX, pY);
+						// circle intersects with circle
+						if (secondObjectIndex != -1 && firstObjectIndex != secondObjectIndex)
+						{
+							circles[firstObjectIndex].isSelected = false;
+							firstObject = NONE;
 
-								lines[firstObjectIndex].isSelected = false;
-								
-								vec2* intersections = getIntersectionPoint(lines[firstObjectIndex], circles[secondObjectIndex]);
+							vec2* intersections = getIntersectionPoint(circles[firstObjectIndex], circles[secondObjectIndex]);
+							visualizeIntersection(intersections);
+							delete[] intersections;
+						}
+						else
+						{
+							secondObjectIndex = getClickedLine(pX, pY);
+							// circle intersects with line
+							if (secondObjectIndex != -1)
+							{
+								circles[firstObjectIndex].isSelected = false;
+								firstObject = NONE;
+
+								vec2* intersections = getIntersectionPoint(lines[secondObjectIndex], circles[firstObjectIndex]);
 								visualizeIntersection(intersections);
 								delete[] intersections;
 							}
 						}
 						break;
-					}
-					case CIRCLE:
-					{
-						unsigned int circleIndex = getClickedCircle(pX, pY);
-						if (circleIndex != -1 && circleIndex != firstObjectIndex){
-							secondObjectIndex = circleIndex;
-							secondObjectSelected = true;
-							firstObjectSelected = false;
+					case LINE:
+						secondObjectIndex = getClickedLine(pX, pY);
+						// line intersects with line
+						if (secondObjectIndex != -1 && firstObjectIndex != secondObjectIndex)
+						{
+							lines[firstObjectIndex].isSelected = false;
+							firstObject = NONE;
 
-							circles[firstObjectIndex].isSelected = false;
-							
-							vec2* intersections = getIntersectionPoint(circles[firstObjectIndex], circles[secondObjectIndex]);
-							visualizeIntersection(intersections);
-							delete[] intersections;
+							vec2 intersections = getIntersectionPoint(lines[firstObjectIndex], lines[secondObjectIndex]);
+							points.push_back(Point(intersections));
+						}
+						else
+						{
+							secondObjectIndex = getClickedCircle(pX, pY);
+							// line intersects with circle
+							if (secondObjectIndex != -1)
+							{
+								lines[firstObjectIndex].isSelected = false;
+								firstObject = NONE;
+
+								vec2* intersections = getIntersectionPoint(lines[secondObjectIndex], circles[firstObjectIndex]);
+								visualizeIntersection(intersections);
+								delete[] intersections;
+							}
 						}
 						break;
+				}
+				break;
+			case L:
+				for (unsigned int i = 0; i < points.size(); i++)
+				{
+					if (points[i].isInside(click))
+					{
+						printf("number of circles: %d, number of lines: %d\n", circles.size(), lines.size());
+						switch (l){
+							case NONE_SELECTED:
+								l = FIRST_SELECTED;
+								lineStart = i;
+								lineEnd = -1;
+								break;
+							case FIRST_SELECTED:
+								if (lineStart != i)
+								{
+									lineEnd = i;
+									l = NONE_SELECTED;
+									lines.push_back(Line(points[lineStart].position, points[lineEnd].position));
+									lineEnd = -1;
+									lineStart = -1;
+								}
+								break;
+						}
+
 					}
 				}
-			}
 		}
 	}
 }
