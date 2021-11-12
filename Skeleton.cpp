@@ -33,6 +33,14 @@
 //=============================================================================================
 #include "framework.h"
 
+// the window is 600px * 600px
+// which is 10 * 10 cm
+// convert cm to pixels
+float cmToPixels(float cm)
+{
+	return cm * 60.0f;
+}
+
 const char *const vertexSource = R"(
 	#version 330
 	precision highp float;
@@ -82,7 +90,9 @@ static const vec4 NOCOLOR = vec4(0.0f, 0.0f, 0.0f, 0.0f);
 struct Point
 {
 	vec2 position;
-	float size = 6.0f;
+	float size = cmToPixels(0.1f);
+
+	bool isSelected = false;
 
 	Point(vec2 position) : position(position) {}
 
@@ -99,84 +109,51 @@ struct Point
 	{
 		if (isInside(point))
 		{
-			return YELLOW;
+			return isSelected ? WHITE : YELLOW;
 		}
 		return NOCOLOR;
 	}
 };
 
-class Object
-{
-public:
-	virtual bool isInside(vec2, float) = 0;
-	virtual vec4 getColorForPixel(vec2) = 0;
-	virtual std::string getType() = 0;
-};
 
-struct Circle : Object
+struct Circle
 {
 	vec2 center;
 	float radius;
 
 	float thickness = 3.0f;
-	float clickThreshold = 0.5f;
 
-	// get type of the object
-	std::string getType() override
-	{
-		return "Circle";
-	}
+	bool isSelected = false;
 
 	Circle(vec2 center, float radius) : center(center), radius(radius) {}
 
 	bool isInside(vec2 point, float clickThreshold = 0.0f)
 	{
-		return length(center - point) < radius + clickThreshold && length(center - point) > radius - (thickness + clickThreshold);
+		return length(center - point) < radius + (thickness / 2) + clickThreshold && length(center - point) > radius - (thickness / 2 + clickThreshold);
 	}
 
 	vec4 getColorForPixel(vec2 point)
 	{
 		if (isInside(point))
 		{
-			return CYAN;
+			return  isSelected ? WHITE :CYAN;
 		}
 		else
 		{
 			return NOCOLOR;
 		}
 	}
-
-	// retuns 2 points that are the intersection of an other circle
-	std::vector<vec2> getIntersectionPoints(Circle other)
-	{
-		std::vector<vec2> points;
-		float d = length(center - other.center);
-		float a = (radius + other.radius) * (radius + other.radius);
-		float b = 2 * (other.radius * (other.radius - radius) + radius * (radius - other.radius));
-		float c = (radius - other.radius) * (radius - other.radius);
-		float x1 = (d * d + a - b) / (2 * d);
-		float x2 = (d * d - a + b) / (2 * d);
-		float y1 = sqrt(c - x1 * x1);
-		float y2 = sqrt(c - x2 * x2);
-		points.push_back(vec2(x1, y1) + center);
-		points.push_back(vec2(x2, y2) + center);
-		return points;
-	}
 };
 
 // infinite line with thickness
-struct Line : Object
+struct Line
 {
 	vec2 p1;
 	vec2 p2;
 
-	float thickness = 2.0f;
+	bool isSelected = false;
 
-	// get type of the object
-	std::string getType() override
-	{
-		return "Line";
-	}
+	float thickness = 2.0f;
 
 	Line(vec2 p1, vec2 p2) : p1(p1), p2(p2) {}
 
@@ -201,7 +178,7 @@ struct Line : Object
 		// if we draw the click treshold is 0
 		if (isInside(point))
 		{
-			return RED;
+			return isSelected ? WHITE :RED;
 		}
 		else
 		{
@@ -210,14 +187,110 @@ struct Line : Object
 	}
 };
 
+// get intersection point of two lines
+vec2 getIntersectionPoint(Line line1, Line line2)
+{
+	vec2 p1 = line1.p1;
+	vec2 p2 = line1.p2;
+	vec2 p3 = line2.p1;
+	vec2 p4 = line2.p2;
+
+	float x1 = p1.x;
+	float y1 = p1.y;
+	float x2 = p2.x;
+	float y2 = p2.y;
+	float x3 = p3.x;
+	float y3 = p3.y;
+	float x4 = p4.x;
+	float y4 = p4.y;
+
+	float d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+	if (areEqual(d, 0.0f))
+	{
+		return vec2(0.0f);
+	}
+
+	float xi = ((x3 - x4) * (x1 * y2 - y1 * x2) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
+	float yi = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+
+	return vec2(xi, yi);
+}
+
+// get intersection point of two circles
+vec2* getIntersectionPoint(Circle circle1, Circle circle2)
+{
+	vec2 center1 = circle1.center;
+	vec2 center2 = circle2.center;
+	float radius1 = circle1.radius;
+	float radius2 = circle2.radius;
+
+	float distance = length(center1 - center2);
+	if (distance > radius1 + radius2)
+	{
+		return nullptr;
+	}
+	else if (distance < fabs(radius1 - radius2))
+	{
+		return nullptr;
+	}
+	else if (distance == 0.0f && radius1 == radius2)
+	{
+		return nullptr;
+	}
+
+	float a = (pow(radius1, 2) - pow(radius2, 2) + pow(distance, 2)) / (2 * distance);
+	float h = sqrt(pow(radius1, 2) - pow(a, 2));
+
+	vec2 p2 = center1 + a * (center2 - center1) / distance;
+	vec2 p1 = p2 + vec2(h * (center2.y - center1.y) / distance, -h * (center2.x - center1.x) / distance);
+	vec2 p3 = p2 + vec2(-h * (center2.y - center1.y) / distance, h * (center2.x - center1.x) / distance);
+
+	return new vec2[2]{p1, p3};
+}
+
+
+// get intersection point of a line and a circle
+vec2 *getIntersectionPoint(Line line, Circle circle){
+	// ez alapján sikerült: https://mathworld.wolfram.com/Circle-LineIntersection.html
+
+	vec2 center = circle.center;
+	float radius = circle.radius;
+
+	vec2 p1 = line.p1;
+	vec2 p2 = line.p2;
+
+	vec2 v = p2 - p1;
+	vec2 w = p1 - center;
+
+	float a = dot(v, v);
+	float b = 2 * dot(v, w);
+	float c = dot(w, w) - pow(radius, 2);
+
+	float d = pow(b, 2) - 4 * a * c;
+
+	if (d < 0)
+	{
+		return nullptr;
+	}
+
+	// ha a 2 egyenlő akkor is egy 2 méretű tömb lesz, mert így egyszerűbb
+
+	float t1 = (-b - sqrt(d)) / (2 * a);
+	float t2 = (-b + sqrt(d)) / (2 * a);
+
+	vec2 intersectionPoint1 = p1 + t1 * v;
+	vec2 intersectionPoint2 = p1 + t2 * v;
+
+	return new vec2[2]{intersectionPoint1, intersectionPoint2};
+}
+
+
+
 vec2 circleStart;
 vec2 circleEnd;
 
 vec2 lineStart;
 vec2 lineEnd;
-
-Object *firstObject = nullptr;
-Object *secondObject = nullptr;
 
 bool firstObjectSelected = false;
 bool secondObjectSelected = false;
@@ -241,12 +314,13 @@ std::vector<Circle> circles;
 std::vector<Line> lines;
 std::vector<Point> points;
 
+
+
 void onInitialization()
 {
 	// alap pontok es egyenes beallitasa
 	points.push_back(Point(vec2((float)windowWidth / 2, (float)windowHeight / 2)));
-	points.push_back(Point(vec2((float)windowWidth / 2 + 60.0f, (float)windowHeight / 2)));
-	points.push_back(Point(vec2(60.0f, 55.0f)));
+	points.push_back(Point(vec2((float)windowWidth / 2 + cmToPixels(1), (float)windowHeight / 2)));
 
 	lines.push_back(Line(points[0].position, points[1].position));
 
@@ -341,15 +415,19 @@ void onKeyboard(unsigned char key, int pX, int pY)
 	{
 	case 's':
 		isSpressed = true;
+		printf("s pressed\n");
 		break;
 	case 'c':
 		isCpressed = true;
+		printf("c pressed\n");
 		break;
 	case 'i':
 		isIpressed = true;
+		printf("i pressed\n");
 		break;
 	case 'l':
 		isLpressed = true;
+		printf("");
 		break;
 	}
 }
@@ -375,22 +453,63 @@ void onKeyboardUp(unsigned char key, int pX, int pY)
 }
 
 // Move mouse with key pressed
-void onMouseMotion(int pX, int pY)
-{ // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
+void onMouseMotion(int pX, int pY){
+}
+
+unsigned int getClickedCircle(int x, int y)
+{
+	for (unsigned int i = 0; i < circles.size(); i++)
+	{
+		if (circles[i].isInside(vec2(x, y), 3.0f))
+		{
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 
+unsigned int getClickedLine(int x, int y)
+{
+	for (unsigned int i = 0; i < lines.size(); i++)
+	{
+		if (lines[i].isInside(vec2(x, y), 4.0f))
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+unsigned int firstObjectIndex = -1;
+unsigned int secondObjectIndex = -1;
+
+enum ObjectType { LINE, CIRCLE, NONE};
+
+ObjectType firstObjectType = NONE;
+
+void visualizeIntersection(vec2* p)
+{
+	if (p != nullptr){
+		for (int i = 0; i < 2; i++)
+		{
+			points.push_back(Point(p[i]));
+		}
+	}
+}
 
 // Mouse click event
-void onMouse(int button, int state, int pX, int pY)
-{ // pX, pY are the pixel coordinates of the cursor in the coordinate system of the operation system
+void onMouse(int button, int state, int pX, int pY){
 	pY = windowHeight - pY;
 	vec2 click = vec2(pX, pY);
+
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
 	{
 		for (Point p : points)
 		{
-			if (p.isInside(click, 5.0f))
+			if (p.isInside(click))
 			{
 				if (isSpressed)
 				{
@@ -399,7 +518,6 @@ void onMouse(int button, int state, int pX, int pY)
 						circleStart = p.position;
 						firstPointPlaced = true;
 						secondPointPlaced = false;
-						printf("First point placed: %f, %f\n", circleStart.x, circleStart.y);
 					}
 					else if (!secondPointPlaced)
 					{
@@ -408,7 +526,6 @@ void onMouse(int button, int state, int pX, int pY)
 						{
 							firstPointPlaced = false;
 							secondPointPlaced = true;
-							printf("Second point placed: %f, %f\n", circleEnd.x, circleEnd.y);
 						}
 					}
 				}
@@ -426,7 +543,6 @@ void onMouse(int button, int state, int pX, int pY)
 						lineStart = p.position;
 						firstPointPlaced = true;
 						secondPointPlaced = false;
-						printf("First point for line placed: %f, %f\n", lineStart.x, lineStart.y);
 					}
 					else if (!secondPointPlaced)
 					{
@@ -435,9 +551,86 @@ void onMouse(int button, int state, int pX, int pY)
 						{
 							firstPointPlaced = false;
 							secondPointPlaced = true;
-							printf("Second point for line placed: %f, %f\n", lineEnd.x, lineEnd.y);
+
 							lines.push_back(Line(lineStart, lineEnd));
 						}
+					}
+				}
+			}
+		}
+		
+		if (isIpressed)
+		{
+			// select the first object
+			if (!firstObjectSelected){
+				unsigned int lineIndex = getClickedLine(pX, pY);
+				if (lineIndex != -1){
+					firstObjectIndex = lineIndex;
+					firstObjectType = LINE;
+					firstObjectSelected = true;
+					secondObjectSelected = false;
+
+					lines[firstObjectIndex].isSelected = true;
+				}
+				else{
+					unsigned int circleIndex = getClickedCircle(pX, pY);
+					if (circleIndex != -1){
+						firstObjectIndex = circleIndex;
+						firstObjectType = CIRCLE;
+						firstObjectSelected = true;
+						secondObjectSelected = false;
+
+						circles[firstObjectIndex].isSelected = true;
+					}
+				}
+			}
+			// select the second object
+			else if (!secondObjectSelected){
+				switch (firstObjectType){
+					case LINE:
+					{
+						unsigned int lineIndex = getClickedLine(pX, pY);
+						if (lineIndex != -1 && lineIndex != firstObjectIndex){
+							secondObjectIndex = lineIndex;
+							secondObjectSelected = true;
+							firstObjectSelected = false;
+
+							lines[firstObjectIndex].isSelected = false;
+
+							vec2 intersections = getIntersectionPoint(lines[firstObjectIndex], lines[secondObjectIndex]);
+							points.push_back(Point(intersections));
+						}
+						else{
+							unsigned int circleIndex = getClickedCircle(pX, pY);
+							if (circleIndex != -1){
+								secondObjectIndex = circleIndex;
+								secondObjectSelected = true;
+								firstObjectSelected = false;
+
+								lines[firstObjectIndex].isSelected = false;
+								
+								vec2* intersections = getIntersectionPoint(lines[firstObjectIndex], circles[secondObjectIndex]);
+								visualizeIntersection(intersections);
+								delete[] intersections;
+							}
+						}
+						break;
+					}
+					case CIRCLE:
+					{
+						unsigned int circleIndex = getClickedCircle(pX, pY);
+						if (circleIndex != -1 && circleIndex != firstObjectIndex){
+							secondObjectIndex = circleIndex;
+							secondObjectSelected = true;
+							firstObjectSelected = false;
+
+							circles[firstObjectIndex].isSelected = false;
+							
+							vec2* intersections = getIntersectionPoint(circles[firstObjectIndex], circles[secondObjectIndex]);
+							visualizeIntersection(intersections);
+							delete[] intersections;
+						}
+						break;
 					}
 				}
 			}
