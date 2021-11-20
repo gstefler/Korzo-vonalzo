@@ -16,6 +16,3 @@ endif(WIN32)
 if(UNIX)
     target_link_libraries(${PROJECT_NAME} ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} ${GLEW_LIBRARIES})
 endif(UNIX)
-
-
-
