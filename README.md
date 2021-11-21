@@ -1,5 +1,7 @@
 #  Feladat
 
+![rendered_image](https://github.com/gstefler/Korzo-vonalzo/blob/master/img/rendered_image.png)
+
 Készítsen "vonalzó + körző" 2D rajzoló programot. A program egy 10 cm x 10 cm-es világot mutat, amelynek indulásakor félmagasságban egy vízszintes vonal van, annak közepén és onnan 1 cm-re jobbra egy-egy pont látható. A megengedett szerkesztési műveletek:
 
 1. Körző befogása: 's' + klikk egy létező pontra, ahova a körzőt szúrjuk + klikk egy létező pontra, ahova a körzőt nyitjuk
